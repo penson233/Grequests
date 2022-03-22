@@ -105,8 +105,7 @@ func (this *Requests) createClient(method string) (*http.Client, *http.Request) 
 		} else {
 
 			//处理data
-			_, ok := this.Headers["Content-Type"]
-			if len(this.Json) != 0 || ok {
+			if len(this.Json) != 0 {
 				this.Headers["Content-Type"] = "application/json"
 				req, err = http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Json)))
 			} else {
