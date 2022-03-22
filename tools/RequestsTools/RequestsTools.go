@@ -1,9 +1,9 @@
 package RequestsTools
 
 import (
-	"Grequests/tools/ResponseTools"
 	"bytes"
 	"fmt"
+	"github.com/penson233/Grequests/tools/ResponseTools"
 	"log"
 	"math/rand"
 	"net/http"
@@ -14,16 +14,18 @@ import (
 type Requests struct {
 	Url string
 	Data string
+	Params map[string]string
 	Headers map[string]string
 	Proxies map[string]string
 	File []string //{"file","1.php","<?php eval($_POST['penson'])?>","image/jpeg"}
 	MutiData map[string]string
+	Json string
 
 }
 
 
 //上传文件
-func (this *Requests)UploadFile() (*http.Request,error){
+func (this *Requests)UploadFile(urlink string) (*http.Request,error){
 	bodyBuf := &bytes.Buffer{}
 	bodyWrite := NewWriter(bodyBuf)
 	//file, err := os.Open(this.File[2])
@@ -46,7 +48,7 @@ func (this *Requests)UploadFile() (*http.Request,error){
 
 	// 创建请求
 	contentType := bodyWrite.FormDataContentType()
-	req, err := http.NewRequest(http.MethodPost, "http://10.1.5.252", bodyBuf)
+	req, err := http.NewRequest(http.MethodPost, urlink, bodyBuf)
 	req.Header.Set("Content-Type", contentType)
 	return req,err
 
@@ -82,14 +84,50 @@ func (this *Requests) createClient(method string) (*http.Client,*http.Request) {
 	var req *http.Request
 	var err error
 
+	//处理get参数
+	var urlink string
+	params:=""
+	if len(this.Params)!=0{
+		for key,value :=range this.Params{
+			params+=key+"="+url.QueryEscape(value)+"&"
+		}
+		params=params[:len(params)-1]
+		urlink=this.Url+"?"+params
+
+	} else {
+		urlink =this.Url
+	}
+
 
 	if method=="GET" {
-		req, err = http.NewRequest(method, this.Url,nil)
+
+		fmt.Println(urlink)
+		req, err = http.NewRequest(method, urlink,nil)
+
 	}else if method=="POST"{
+
+
 		if len(this.File) >0{
-			req,err=this.UploadFile()
+			req,err=this.UploadFile(urlink)
 		}else{
-			req,err =http.NewRequest("POST", this.Url, bytes.NewBuffer([]byte(this.Data)))
+
+			//处理data
+			_, ok :=this.Headers["Content-Type"]
+			if len(this.Json) !=0 || ok{
+				this.Headers["Content-Type"]="application/json"
+				req,err =http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Json)))
+			}else{
+				//param:=""
+				//if len(this.Data)!=0{
+				//	for key,value :=range this.Data{
+				//		param+=key+"="+url.QueryEscape(value)+"&"
+				//	}
+				//}
+				//param=param[:len(param)-1]
+
+				req,err =http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Data)))
+			}
+
 		}
 
 	}
@@ -113,7 +151,7 @@ func (this *Requests) Get() string  {
 
 	resp:=this.request(http.MethodGet)
 	return resp
-	
+
 }
 
 //POST 请求
