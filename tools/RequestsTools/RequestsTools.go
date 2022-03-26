@@ -97,7 +97,11 @@ func (this *Requests) handelreq(method string, link string, req *http.Request, e
 				//	}
 				//}
 				//param=param[:len(param)-1]
-				this.Headers["Content-Type"] = "application/x-www-form-urlencoded"
+				if len(this.Headers) <= 0 {
+					this.Headers = make(map[string]string, 0)
+					this.Headers["Content-Type"] = "application/x-www-form-urlencoded"
+				}
+
 				req, err = http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Data)))
 			}
 
