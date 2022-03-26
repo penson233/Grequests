@@ -5,32 +5,24 @@ import (
 	"fmt"
 	"github.com/penson233/Grequests/tools/ResponseTools"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 type Requests struct {
-	Url      string
 	Data     string
 	Params   map[string]string
-	Headers  map[string]string
-	Proxies  map[string]string
 	File     []string //{"file","1.php","<?php eval($_POST['penson'])?>","image/jpeg"}
 	MutiData map[string]string
 	Json     string
+	Client   *http.Client
+	Headers  map[string]string
 }
 
 //上传文件
 func (this *Requests) UploadFile(urlink string) (*http.Request, error) {
 	bodyBuf := &bytes.Buffer{}
 	bodyWrite := NewWriter(bodyBuf)
-	//file, err := os.Open(this.File[2])
-	//defer file.Close()
-	//if err != nil {
-	//	log.Println("err")
-	//}
 	for key, val := range this.MutiData {
 		_ = bodyWrite.WriteField(key, val)
 	}
@@ -51,35 +43,21 @@ func (this *Requests) UploadFile(urlink string) (*http.Request, error) {
 
 }
 
-//创建请求客户端
-func (this *Requests) createClient(method string) (*http.Client, *http.Request) {
-	var client *http.Client
+//GET 请求
+func (this *Requests) Get(url string) *http.Response {
+	resp := this.request(http.MethodGet, url)
+	return resp
 
-	if len(this.Proxies) == 0 {
-		//没有代理的情况
-		client = &http.Client{}
-	} else {
-		//有代理的情况
-		proxis := make([]*url.URL, 1)
-		for _, value := range this.Proxies {
-			uri, _ := url.Parse(value)
-			proxis = append(proxis, uri)
-		}
+}
 
-		//随机选取代理ip
-		rand.Seed(time.Now().Unix())
-		proxy := proxis[rand.Intn(len(proxis))]
+//POST 请求
+func (this *Requests) Post(url string) *http.Response {
 
-		client = &http.Client{Transport: &http.Transport{
-			// 设置代理
-			Proxy: http.ProxyURL(proxy),
-		}}
+	resp := this.request(http.MethodPost, url)
+	return resp
+}
 
-	}
-
-	var req *http.Request
-	var err error
-
+func (this *Requests) handelreq(method string, link string, req *http.Request, err error) *http.Request {
 	//处理get参数
 	var urlink string
 	params := ""
@@ -88,10 +66,10 @@ func (this *Requests) createClient(method string) (*http.Client, *http.Request) 
 			params += key + "=" + url.QueryEscape(value) + "&"
 		}
 		params = params[:len(params)-1]
-		urlink = this.Url + "?" + params
+		urlink = link + "?" + params
 
 	} else {
-		urlink = this.Url
+		urlink = link
 	}
 
 	if method == "GET" {
@@ -106,6 +84,9 @@ func (this *Requests) createClient(method string) (*http.Client, *http.Request) 
 
 			//处理data
 			if len(this.Json) != 0 {
+				if len(this.Headers) <= 0 {
+					this.Headers = make(map[string]string, 0)
+				}
 				this.Headers["Content-Type"] = "application/json"
 				req, err = http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Json)))
 			} else {
@@ -116,7 +97,7 @@ func (this *Requests) createClient(method string) (*http.Client, *http.Request) 
 				//	}
 				//}
 				//param=param[:len(param)-1]
-
+				this.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 				req, err = http.NewRequest("POST", urlink, bytes.NewBuffer([]byte(this.Data)))
 			}
 
@@ -131,31 +112,25 @@ func (this *Requests) createClient(method string) (*http.Client, *http.Request) 
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	return client, req
+	return req
 }
 
-//GET 请求
-func (this *Requests) Get() string {
+func (this *Requests) request(method string, link string) *http.Response {
 
-	resp := this.request(http.MethodGet)
-	return resp
+	client := this.Client
+	var req *http.Request
+	var err error
 
-}
-
-//POST 请求
-func (this *Requests) Post() string {
-
-	resp := this.request(http.MethodPost)
-	return resp
-}
-
-func (this *Requests) request(method string) string {
-
-	client, req := this.createClient(method)
+	//处理请求
+	req = this.handelreq(method, link, req, err)
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	return resp
+}
+
+func (this *Requests) Text(resp *http.Response) string {
 	return ResponseTools.Transformresp(resp)
 }
