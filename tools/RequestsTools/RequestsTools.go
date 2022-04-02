@@ -5,18 +5,23 @@ import (
 	"fmt"
 	"github.com/penson233/Grequests/tools/ResponseTools"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type Requests struct {
-	Data     string
-	Params   map[string]string
-	File     []string //{"file","1.php","<?php eval($_POST['penson'])?>","image/jpeg"}
-	MutiData map[string]string
-	Json     string
-	Client   *http.Client
-	Headers  map[string]string
+	Data          string
+	Params        map[string]string
+	File          []string //{"file","1.php","<?php eval($_POST['penson'])?>","image/jpeg"}
+	MutiData      map[string]string
+	Json          string
+	Client        *http.Client
+	Headers       map[string]string
+	Proxies       map[string]string
+	Timeout       int //超时时限
+	RedirectCount int //重定向的次数
 }
 
 //上传文件
@@ -119,9 +124,62 @@ func (this *Requests) handelreq(method string, link string, req *http.Request, e
 	return req
 }
 
-func (this *Requests) request(method string, link string) *http.Response {
+//创建客户端
+func (this *Requests) createClient() *http.Client {
 
-	client := this.Client
+	var client *http.Client
+
+	var transport = &http.Transport{}
+
+	if len(this.Proxies) > 0 {
+		//有代理的情况
+		proxis := make([]*url.URL, 1)
+		for _, value := range this.Proxies {
+			uri, _ := url.Parse(value)
+			proxis = append(proxis, uri)
+		}
+
+		//随机选取代理ip
+		rand.Seed(time.Now().Unix())
+		proxy := proxis[rand.Intn(len(proxis))]
+
+		transport = &http.Transport{
+			// 设置代理
+			Proxy: http.ProxyURL(proxy),
+		}
+	}
+
+	if this.Timeout == 0 {
+		this.Timeout = 10
+	}
+	if this.RedirectCount < 2 {
+		this.RedirectCount = 2
+	}
+
+	//jar, _ := cookiejar.New(nil)
+
+	client = &http.Client{
+		Transport: transport,
+		Timeout:   time.Second * time.Duration(this.Timeout),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= this.RedirectCount {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
+		//Jar: jar,
+	}
+
+	return client
+}
+
+func (this *Requests) request(method string, link string) *http.Response {
+	client := this.createClient()
+
+	if this.Client != nil {
+		client = this.Client
+	}
+
 	var req *http.Request
 	var err error
 
